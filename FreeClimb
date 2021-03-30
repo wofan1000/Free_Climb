@@ -1,0 +1,184 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace SA
+{
+    public class FreeClimb : MonoBehaviour
+    {
+        public Animator anim;
+        public bool isClimbing;
+        public bool inPos;
+        bool isLerping;
+        
+        float PosT;
+        Vector3 startPos;
+        Vector3 tarPos;
+      
+        Quaternion startRotation;
+        Quaternion tarRotation;
+
+        public float posOffset;
+        public float offsetFromWall = 0.3f;
+        public float speedMultiplier = 0.2f;
+        public float climbSpeed = 3;
+        public float rotateSpeed = 5;
+
+        Transform helper;
+
+        float delta;
+        private void Start()
+        {
+            init();
+        }
+
+       public void init()
+        {
+            helper = new GameObject().transform;
+            helper.name = "climb Helper";
+            CheckForClimb();
+        }
+            public void CheckForClimb()
+            {
+                Vector3 origin = transform.position;
+
+                origin.y += 1.4f;
+
+                Vector3 dir = transform.forward;
+
+                RaycastHit hit;
+
+                if (Physics.Raycast(origin, dir, out hit, 5))
+                {
+                helper.transform.position = PosWithOffset(origin, hit.point);
+                initForClimb(hit);
+                }
+
+            }
+        void initForClimb(RaycastHit hit)
+        {
+            isClimbing = true;
+            helper.transform.rotation = Quaternion.LookRotation(-hit.normal);
+            startPos = transform.position;
+            tarPos = hit.point + (hit.normal * offsetFromWall);
+            PosT = 0;
+            inPos = false;
+            anim.CrossFade("climb_idle", 2);
+        }
+
+
+        private void Update()
+        {
+            delta = Time.deltaTime;
+            Tick(delta);
+        }
+
+        public void Tick(float delta)
+        {
+            if(!inPos)
+            {
+                getInPos();
+                return;
+            }
+
+            if(!isLerping)
+            {
+                float hor = Input.GetAxis("Horizontal");
+                float vert = Input.GetAxis("Vertical");
+                float m = Mathf.Abs(hor) + Mathf.Abs(vert);
+
+                Vector3 h = helper.right * hor;
+                Vector3 v = helper.up * vert;
+                Vector3 moveDir = (h + v).normalized;
+
+                bool canMove = CanMove(moveDir);
+
+                if(!canMove || moveDir == Vector3.zero)
+                {
+                    return;
+
+                    PosT = 0;
+                    isLerping = true;
+                    startPos = transform.position;
+                    Vector3 tp = helper.position - transform.position;
+                    tarPos = helper.position;
+                }
+
+            } else
+            {
+                PosT += delta * climbSpeed;
+                if( PosT > 1 )
+                {
+                    PosT = 1;
+                    isLerping = false;
+                }
+                Vector3 cp = Vector3.Lerp(startPos, tarPos, PosT);
+                transform.position = cp;
+                transform.rotation = Quaternion.Slerp(transform.rotation, helper.rotation, delta * rotateSpeed);
+            }
+        }
+
+        bool CanMove(Vector3 moveDir)
+        {
+            Vector3 origin = transform.position;
+            float dis = posOffset;
+            Vector3 dir = moveDir;
+            RaycastHit hit;
+
+            if(Physics.Raycast(origin, dir, out hit, dis ))
+            {
+                return false;
+            }
+
+            origin += moveDir * dis;
+            dir = helper.forward;
+            float dis2 = 0.5f;
+
+            if (Physics.Raycast(origin, dir, out hit, dis))
+            {
+                helper.position = PosWithOffset(origin, hit.point);
+                helper.rotation = Quaternion.LookRotation(-hit.normal);
+                return true;
+            }
+
+            origin += dir * dis2;
+            dir = -Vector3.up;
+
+            if (Physics.Raycast(origin, dir, out hit, dis2))
+            {
+                float angle = Vector3.Angle(helper.up, hit.normal);
+                if(angle < 40)
+                {
+                    helper.position = PosWithOffset(origin, hit.point);
+                    helper.rotation = Quaternion.LookRotation(-hit.normal);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public void getInPos ()
+        {
+            PosT += delta;
+
+            if(PosT > 1 )
+            {
+                PosT = 1;
+                inPos = true;
+            }
+
+            Vector3 tp = Vector3.Lerp(startPos, tarPos, PosT);
+            transform.position = tp;
+            transform.rotation = Quaternion.Slerp(transform.rotation, helper.rotation, delta * rotateSpeed);
+        }
+
+        Vector3 PosWithOffset(Vector3 origin, Vector3 target)
+        {
+            Vector3 dir = origin - target;
+            dir.Normalize();
+            Vector3 offset = dir * offsetFromWall;
+            return target + offset;
+        }
+       }
+    }
